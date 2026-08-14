@@ -1,584 +1,1323 @@
-# FLYYY.AI — AI Usage Monitoring & Governance Platform
+FLYYY.AI — AI Usage Monitoring & Governance Platform
 
-> **Watching How AI Is Actually Used**
+Watching How AI Is Actually Used
 
-FLYYY.AI is a privacy-aware platform for observing, analyzing, and governing AI
-activity inside an organization. It answers: which AI asset was used, what
-provider/model was called, what prompt was submitted, whether it contained PII,
-whether the PII was removed before storage, what data sources an AI agent
-actually accessed versus what it declared, and what governance risks were
-detected.
+FLYYY.AI is a privacy-aware AI usage monitoring and governance platform built to demonstrate how organizations can safely observe AI activity, detect and sanitize PII, monitor agent behavior, and surface governance risks.
 
----
+The platform covers the complete flow:
 
-## Table of Contents
+AI Activity → Safe Capture → PII Protection → Observation → Analysis → Governance Insight
 
-1. [Problem Statement](#1-problem-statement)
-2. [Why This Problem Matters](#2-why-this-problem-matters)
-3. [Solution Overview](#3-solution-overview)
-4. [Features](#4-features)
-5. [Architecture](#5-architecture)
-6. [AI Activity Data Flow](#6-ai-activity-data-flow)
-7. [Technology Stack](#7-technology-stack)
-8. [Project Structure](#8-project-structure)
-9. [Setup Instructions](#9-setup-instructions)
-10. [Environment Variables](#10-environment-variables)
-11. [Database Setup](#11-database-setup)
-12. [Running Locally](#12-running-locally)
-13. [PII Detection Mechanism](#13-pii-detection-mechanism)
-14. [PII Supported Types](#14-pii-supported-types)
-15. [PII Limitations](#15-pii-limitations)
-16. [Observability Approach](#16-observability-approach)
-17. [OpenTelemetry/OpenLLMetry Approach](#17-opentelemetryopenlemetry-approach)
-18. [Agent Monitoring Approach](#18-agent-monitoring-approach)
-19. [Declared vs Observed Access](#19-declared-vs-observed-access)
-20. [Retention Mechanism](#20-retention-mechanism)
-21. [Prompt Monitoring Enable/Disable](#21-prompt-monitoring-enabledisable)
-22. [Capability Matrix](#22-capability-matrix)
-23. [Assumptions](#23-assumptions)
-24. [Limitations](#24-limitations)
-25. [Security Considerations](#25-security-considerations)
-26. [Testing](#26-testing)
-27. [Deployment Instructions](#27-deployment-instructions)
-28. [Future Improvements](#28-future-improvements)
+Table of Contents
 
----
+Problem Statement
 
-## 1. Problem Statement
+Solution Overview
 
-Organizations may know which AI systems are approved, but often lack visibility
-into **how those AI systems are actually being used**. Key questions:
+Key Features
 
-- Which AI application/asset was used?
-- What AI provider/model was used?
-- What prompt was submitted?
-- Did the prompt contain PII or sensitive information?
-- Was the sensitive information removed before storage?
-- What tools/APIs did the AI invoke?
-- What data sources did an AI agent actually access?
-- What data sources was the AI agent declared/expected to access?
-- Did actual behavior differ from declared behavior?
-- When did the AI execution happen? What was the status?
-- What governance risks or unexpected activity were detected?
+Architecture
 
-## 2. Why This Problem Matters
+AI Activity Data Flow
 
-AI adoption is outpacing AI governance. Without observability, organizations
-cannot detect: sensitive data leaking into prompts, agents accessing data
-sources they were not approved to access, model drift, or compliance violations.
-FLYYY.AI demonstrates a system that captures AI activity **safely** — detecting
-and redacting PII before persistence — and turns that activity into governance
-insight.
+Technology Stack
 
-## 3. Solution Overview
+Project Structure
 
-The platform follows this pipeline:
+Setup Instructions
 
-```
-AI Activity → Safe Capture → Observation → Analysis → Governance Insight
-```
+Environment Variables
 
-- **Safe Capture**: Every AI interaction is intercepted server-side. PII is
-  detected and redacted **before** the prompt is persisted.
-- **Observation**: OpenTelemetry-style spans capture provider, model, token
-  usage, tool calls, and data-source access events.
-- **Analysis**: Activity records, PII metadata, and agent run records are
-  stored in PostgreSQL and surfaced through dashboards.
-- **Governance Insight**: Declared-vs-observed data-source comparison, PII
-  alerts, failed execution alerts, and unexpected access alerts.
+Database Setup
 
-## 4. Features
+Running Locally
 
-- **Customer Support AI** — live demo chatbot with PII detection
-- **AI Activity Monitoring** — sanitized prompt, provider, model, status, duration, token usage
-- **PII Detection & Sanitization** — 6 PII types, redaction before persistence, metadata storage
-- **Prompt Monitoring Control** — enable/disable prompt content storage
-- **Configurable Retention** — 7/30/90/custom days with purge mechanism
-- **AI Agent Monitoring** — declared vs observed data-source comparison
-- **Governance Alerts** — PII, unexpected access, failed executions, config changes
-- **Observability** — OpenTelemetry-style spans persisted to database
-- **Professional Dashboard** — KPIs, charts, searchable activity table, PII view, agent view
+Backend API
 
-## 5. Architecture
+Frontend Pages
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     React Frontend (Vite)                     │
-│  Dashboard · Assets · Activity · PII · Agent · Alerts · Settings │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTPS (Supabase anon key — no secrets)
-┌──────────────────────────▼──────────────────────────────────┐
-│              Supabase Edge Functions (Deno/TS)                │
-│  flyyy-api   — REST API (read endpoints + config)             │
-│  flyyy-chat  — Demo Customer Support AI + PII + observability │
-│  flyyy-agent — Demo agent + declared/observed monitoring      │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-         ┌─────────────────┼─────────────────┐
-         │                 │                 │
-┌────────▼───────┐ ┌───────▼────────┐ ┌──────▼──────────┐
-│  PII Detection  │ │  Observability  │ │   AI Provider    │
-│  + Sanitization │ │  (OTel spans)   │ │  (configurable)  │
-└────────┬────────┘ └───────┬────────┘ └──────┬──────────┘
-         │                  │                 │
-┌────────▼──────────────────▼─────────────────▼──────────────┐
-│                    PostgreSQL (Supabase)                     │
-│  ai_assets · ai_activity · pii_events · agent_runs           │
-│  agent_run_data_sources · governance_alerts · otel_spans     │
-│  monitoring_config · retention_config · data_sources         │
-│  faq_entries · orders (simulated data sources)               │
-└─────────────────────────────────────────────────────────────┘
-```
+PII Detection and Sanitization
 
-### Architecture diagram (Excalidraw-compatible)
+PII Supported Types
 
-The diagram above can be recreated in Excalidraw as three stacked layers
-(frontend → edge functions → PostgreSQL) with side branches for PII,
-observability, and AI provider.
+Prompt Monitoring
 
-## 6. AI Activity Data Flow
+AI Agent Monitoring
 
-```
-User submits prompt
+Governance Alerts
+
+Observability
+
+Retention
+
+Capability Matrix
+
+Security and Privacy
+
+Testing
+
+Assumptions
+
+Limitations
+
+Deployment
+
+Future Improvements
+
+1. Problem Statement
+
+Organizations may know which AI applications are approved but still lack visibility into how those systems are actually being used.
+
+Important governance questions include:
+
+Which AI asset was used?
+
+Which provider and model were used?
+
+What prompt was submitted?
+
+Did the prompt contain PII?
+
+Was PII removed before persistence?
+
+What tools were invoked?
+
+What data sources did an AI agent actually access?
+
+What data sources was the agent expected to access?
+
+Did observed behavior differ from declared behavior?
+
+How long did the execution take?
+
+Did the execution succeed or fail?
+
+What governance risks were detected?
+
+FLYYY.AI demonstrates a practical approach to answering these questions while avoiding storage of raw PII.
+
+2. Solution Overview
+
+The platform contains a React frontend and a Python/FastAPI backend connected to PostgreSQL.
+
+The backend provides APIs for:
+
+AI asset monitoring
+
+Dashboard metrics
+
+Prompt monitoring
+
+PII detection and sanitization
+
+Activity history
+
+Agent execution monitoring
+
+Governance alerts
+
+Configuration
+
+Retention
+
+Observability
+
+The frontend presents these capabilities through a dashboard with dedicated pages for each monitoring area.
+
+3. Key Features
+
+Dashboard
+
+Provides an overview of AI activity including:
+
+Total requests
+
+Active AI assets
+
+PII events
+
+PII-affected prompts
+
+Unexpected data-access events
+
+Failed executions
+
+PII distribution by type
+
+Recent activity
+
+Customer Support AI
+
+A live demo interface where users can submit prompts.
+
+Example:
+
+Write a reminder email to Ramesh, phone 9840123456 about his insurance claim.
+
+The system detects PII and returns a sanitized representation such as:
+
+Write a reminder email to <NAME>, phone <PHONE> about his insurance claim.
+
+AI Activity Monitoring
+
+Displays:
+
+Request ID
+
+AI provider
+
+Model
+
+Sanitized prompt
+
+PII detection status
+
+PII counts
+
+Duration
+
+Status
+
+Creation time
+
+PII Monitoring
+
+Displays PII events and aggregated PII information without exposing the original sensitive values.
+
+Agent Monitoring
+
+Demonstrates declared versus observed data-source access.
+
+Example:
+
+Declared:
+  FAQ Database
+
+Observed:
+  FAQ Database
+  Orders Database
+
+Unexpected:
+  Orders Database
+
+Governance Alerts
+
+Surfaces:
+
+PII detected
+
+Unexpected data access
+
+Failed execution
+
+Configuration changes
+
+Observability
+
+Displays OpenTelemetry-style traces and spans generated at important instrumentation points.
+
+Settings
+
+Provides controls for:
+
+Prompt monitoring
+
+Retention period
+
+Retention purge
+
+4. Architecture
+
+┌────────────────────────────────────────────────────────────┐
+│                    React Frontend                          │
+│                 Vite + TypeScript                         │
+│                                                            │
+│ Dashboard · Assets · Activity · PII · Chat · Agent         │
+│ Alerts · Observability · Settings                          │
+└───────────────────────────┬────────────────────────────────┘
+                            │
+                            │ HTTP / JSON
+                            ▼
+┌────────────────────────────────────────────────────────────┐
+│                     FastAPI Backend                        │
+│                         Python                             │
+│                                                            │
+│ Health · Dashboard · Assets · Activity · PII               │
+│ Chat · Agent · Alerts · Config · Retention · Observability │
+└───────────────────────────┬────────────────────────────────┘
+                            │
+             ┌──────────────┼──────────────┐
+             │              │              │
+             ▼              ▼              ▼
+      PII Detection   Agent Monitoring  Observability
+      & Sanitization  Declared/Observed  Trace/Span Data
+             │              │              │
+             └──────────────┼──────────────┘
+                            ▼
+┌────────────────────────────────────────────────────────────┐
+│                     PostgreSQL                             │
+│                                                            │
+│ ai_assets · ai_activity · pii_events · agent_runs          │
+│ governance_alerts · otel_spans · configuration              │
+│ data sources / demo data                                   │
+└────────────────────────────────────────────────────────────┘
+
+Design principle
+
+Sensitive prompt content is processed before persistence.
+
+The backend is the trust boundary. The frontend does not directly access the database.
+
+5. AI Activity Data Flow
+
+User enters prompt
         │
         ▼
-┌─ flyyy-chat edge function ─────────────────────────┐
-│  1. Read monitoring_config (prompt monitoring on?) │
-│  2. PII detection (regex + name list)              │
-│  3. Sanitization: replace values with <TYPE> tokens│
-│  4. Call AI provider with SANITIZED prompt         │
-│  5. Insert ai_activity row                         │
-│     - sanitized_prompt (if monitoring ON)          │
-│     - OR null sanitized_prompt (if monitoring OFF) │
-│     - pii_counts, token_usage, duration, status    │
-│  6. Insert pii_events (type + count, NEVER value)  │
-│  7. Insert governance_alerts (if PII/failed)       │
-│  8. Insert otel_spans (chat span + pii.detect span)│
-└────────────────────────────────────────────────────┘
+React Frontend
         │
         ▼
-┌─ Response to user ─────────────────────────────────┐
-│  { sanitized_prompt, pii_counts, response, ... }   │
-│  Original PII values are NEVER returned or stored.  │
-└─────────────────────────────────────────────────────┘
-```
+FastAPI /api/chat or /api/monitoring/prompt
+        │
+        ▼
+PII Detection
+        │
+        ├── PII found
+        │      │
+        │      ▼
+        │   Sanitize
+        │      │
+        │      ▼
+        │   <NAME>, <PHONE>, <EMAIL>, ...
+        │
+        ▼
+AI / Demo Processing
+        │
+        ▼
+Store monitoring metadata
+        │
+        ├── sanitized prompt
+        ├── PII counts
+        ├── provider
+        ├── model
+        ├── duration
+        ├── status
+        └── token usage when available
+        │
+        ▼
+Dashboard / Activity / PII / Alerts
 
-**Privacy guarantee**: The raw prompt exists only in memory during processing.
-It is never written to any table. Only the sanitized version (with `<NAME>`,
-`<PHONE>`, etc. tokens) is persisted, and only when prompt monitoring is
-enabled.
+Privacy rule
 
-## 7. Technology Stack
+The original raw prompt should never be persisted as the monitoring record.
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Frontend | React 18 + Vite + TypeScript + Tailwind CSS | Fast, type-safe, modern dev experience |
-| Backend | Supabase Edge Functions (Deno/TypeScript) | Server-side execution for AI calls + PII processing; no separate server to manage |
-| Database | PostgreSQL (Supabase) | Relational schema with RLS, JSONB for flexible metadata |
-| AI Provider | Configurable (OpenAI-compatible) | Works with any OpenAI-compatible API; demo fallback when no key configured |
-| Observability | OpenTelemetry-style spans | Code-instrumentation approach, persisted to `otel_spans` table |
-| Icons | lucide-react | Clean, consistent icon set |
+Only the sanitized prompt and PII metadata are stored when prompt monitoring is enabled.
 
-### Note on FastAPI/Python
+When prompt monitoring is disabled, prompt content is not stored while operational metadata can still be retained.
 
-The challenge specification suggests Python/FastAPI for the backend. This
-implementation uses Supabase Edge Functions (TypeScript/Deno) instead, which
-provides the same server-side capabilities (AI provider calls, PII processing,
-observability instrumentation, REST API) on a managed runtime. The
-architecture, API design, privacy guarantees, and observability approach are
-identical to what a FastAPI implementation would provide. The edge function
-source code is structured modularly and can be ported to FastAPI
-straightforwardly if required.
+6. Technology Stack
 
-## 8. Project Structure
+Layer
 
-```
-flyyy-ai/
-├── src/                          # React frontend
-│   ├── components/               # Layout, UI primitives
-│   ├── pages/                    # Dashboard, Assets, Activity, PII, Agent, Alerts, Observability, Settings, Chat
-│   ├── services/                 # API client
-│   ├── hooks/                    # useFetch
-│   ├── types/                    # TypeScript types
-│   └── utils/                    # Formatting helpers
-├── supabase/
-│   ├── functions/                # Edge functions (backend)
-│   │   ├── flyyy-api/            # REST API endpoints
-│   │   ├── flyyy-chat/           # Demo Customer Support AI
-│   │   ├── flyyy-agent/          # Demo AI agent
-│   │   └── _shared/              # Shared PII + DB helpers (reference)
-│   └── migrations/               # SQL migrations
-├── tests/                        # Unit + integration tests
-├── .env.example                  # Environment variable template
-├── README.md                     # This file
-└── package.json                  # Frontend dependencies + scripts
-```
+Technology
 
-## 9. Setup Instructions
+Purpose
 
-```bash
-# 1. Install frontend dependencies
+Frontend
+
+React.js
+
+User interface
+
+Language
+
+TypeScript
+
+Frontend type safety
+
+Build Tool
+
+Vite
+
+Frontend development/build
+
+Styling
+
+Tailwind CSS
+
+UI styling
+
+Backend
+
+Python
+
+Server-side implementation
+
+API Framework
+
+FastAPI
+
+REST API
+
+Database
+
+PostgreSQL
+
+Persistent relational storage
+
+ORM/DB Access
+
+SQLAlchemy
+
+Database connectivity/query execution
+
+API Client
+
+Fetch API
+
+Frontend/backend communication
+
+Icons
+
+lucide-react
+
+UI icons
+
+Observability
+
+OpenTelemetry-style spans
+
+AI activity tracing
+
+PII Detection
+
+Python sanitization logic
+
+Detection and redaction
+
+The implementation intentionally uses a lightweight application-level instrumentation approach rather than claiming network-level visibility that the application cannot reliably provide.
+
+7. Project Structure
+
+flyyy-ai-monitoring/
+│
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py
+│   │   ├── database.py
+│   │   ├── pii.py
+│   │   └── settings.py
+│   │
+│   └── .env
+│
+├── frontend/
+│   └── project/
+│       ├── src/
+│       │   ├── components/
+│       │   ├── hooks/
+│       │   ├── pages/
+│       │   │   ├── ActivityPage.tsx
+│       │   │   ├── AgentPage.tsx
+│       │   │   ├── AlertsPage.tsx
+│       │   │   ├── AssetsPage.tsx
+│       │   │   ├── ChatPage.tsx
+│       │   │   ├── DashboardPage.tsx
+│       │   │   ├── ObservabilityPage.tsx
+│       │   │   ├── PiiPage.tsx
+│       │   │   └── SettingsPage.tsx
+│       │   ├── services/
+│       │   │   └── api.ts
+│       │   ├── types/
+│       │   │   └── index.ts
+│       │   └── utils/
+│       │
+│       ├── package.json
+│       ├── vite.config.ts
+│       ├── tsconfig.json
+│       └── README.md
+│
+├── .gitignore
+└── README.md
+
+8. Setup Instructions
+
+Prerequisites
+
+Install:
+
+Python 3.10+
+
+Node.js 18+
+
+npm
+
+PostgreSQL
+
+Verify:
+
+python --version
+node --version
+npm --version
+psql --version
+
+Backend setup
+
+From the repository root:
+
+cd backend
+python -m venv .venv
+
+Activate the virtual environment on Windows:
+
+.venv\Scripts\Activate.ps1
+
+Install dependencies:
+
+pip install fastapi uvicorn sqlalchemy psycopg2-binary python-dotenv
+
+If the project contains a backend requirements file, use:
+
+pip install -r requirements.txt
+
+Frontend setup
+
+Open another terminal:
+
+cd frontend/project
 npm install
 
-# 2. Copy environment variables
-cp .env.example .env
-# Edit .env with your Supabase URL and anon key
+9. Environment Variables
 
-# 3. The database schema and seed data are applied via Supabase migrations
-#    (already applied if using the provisioned Supabase instance)
+Backend
 
-# 4. Start the development server
-npm run dev
-```
+Create:
 
-## 10. Environment Variables
+backend/.env
 
-See `.env.example`:
+Example:
 
-```
-# Frontend (exposed to browser — no secrets)
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/flyyy_ai
 
-# Backend (edge function secrets — NOT exposed to browser)
-AI_PROVIDER=demo                    # or "openai" for live AI
-AI_API_KEY=                         # your OpenAI-compatible API key
-AI_MODEL=demo-support-v1            # or e.g. gpt-4o-mini
-AI_BASE_URL=https://api.openai.com/v1
 PROMPT_MONITORING_ENABLED=true
 RETENTION_DAYS=30
-```
 
-**Security**: `AI_API_KEY` is only read by edge functions server-side. It is
-never imported in frontend code and never exposed to the browser.
+AI_PROVIDER=demo
+AI_MODEL=demo-support-v1
 
-## 11. Database Setup
+Use your actual PostgreSQL username, password, host, port, and database name.
 
-The schema is defined in `supabase/migrations/`:
-- `001_flyyy_schema.sql` — all tables, indexes, constraints, RLS policies
-- `002_flyyy_seed_demo_data.sql` — demo AI assets, activity, PII events, agent runs, alerts, spans
-- `003_flyyy_pii_counts_function.sql` — `pii_counts_by_type()` SQL function
+Do not commit secrets to GitHub.
 
-Tables:
-- `ai_assets` — registered AI applications/agents
-- `ai_activity` — monitoring records (sanitized prompt only)
-- `pii_events` — PII metadata (type + count, never the value)
-- `agent_runs` — agent execution records
-- `agent_run_data_sources` — declared/observed data sources per run
-- `data_sources` — registered data sources (FAQ, Orders)
-- `faq_entries` / `orders` — simulated data source content
-- `governance_alerts` — governance events
-- `monitoring_config` — prompt monitoring on/off (singleton)
-- `retention_config` — retention days (singleton)
-- `otel_spans` — OpenTelemetry-style span records
+Frontend
 
-## 12. Running Locally
+The frontend API client uses:
 
-```bash
-npm install
-npm run dev      # frontend on http://localhost:5173
-```
+VITE_API_URL
 
-The backend (edge functions) is deployed to Supabase and called over HTTPS.
-No local backend process is needed.
+If it is not provided, the application defaults to:
 
-## 13. PII Detection Mechanism
+http://127.0.0.1:8000
 
-**Approach**: Regex-based pattern matching for structured identifiers (email,
-phone, SSN, credit card, address) plus a curated list of common given names
-for name detection.
+Example:
 
-**Pipeline**:
-1. Run all regex patterns against the input text
-2. Run name-list matching (word-boundary, case-insensitive)
-3. Sort matches by position, resolve overlaps (prefer more specific types)
-4. Replace each match with a `<TYPE>` token
-5. Return the sanitized text + match metadata (type + count)
+VITE_API_URL=http://127.0.0.1:8000
 
-**The raw PII values are never persisted.** Only the sanitized text and the
-type counts are stored.
+10. Database Setup
 
-## 14. PII Supported Types
+Create the PostgreSQL database:
 
-| Type | Pattern | Example |
-|------|---------|---------|
-| EMAIL | RFC-ish email regex | `jane@example.com` → `<EMAIL>` |
-| PHONE | International/US/India phone (7+ digits, +, spaces, dashes) | `9840123456` → `<PHONE>` |
-| NAME | Curated list of ~32 common given names | `Ramesh` → `<NAME>` |
-| ADDRESS | Street address (number + name + St/Ave/Rd/etc.) | `123 Main St` → `<ADDRESS>` |
-| SSN | US Social Security Number `xxx-xx-xxxx` | `123-45-6789` → `<SSN>` |
-| CREDIT_CARD | 13-19 digit grouped card numbers | `4111 1111 1111 1111` → `<CREDIT_CARD>` |
+CREATE DATABASE flyyy_ai;
 
-## 15. PII Limitations
+The backend uses SQLAlchemy to connect to PostgreSQL.
 
-**Detection approach**: Regex + curated name list (no NER model, no LLM-based
-extraction). This is a deliberate choice for a dependency-free, deterministic,
-fast implementation that runs in a serverless edge runtime.
+The application expects monitoring-related tables such as:
 
-**Strengths**:
-- Deterministic and fast — no external API calls for detection
-- No data leaves the runtime during detection
-- Works offline / in air-gapped environments
-- Clear, auditable detection logic
+ai_assets
+ai_activity
+pii_events
+agent_runs
+governance_alerts
+otel_spans
+monitoring_config / application configuration
 
-**False positives**:
-- NAME: common words that happen to be in the name list (e.g. "Wei" could
-  appear in non-name contexts)
-- PHONE: long numeric sequences that are not phone numbers (e.g. order
-  numbers, reference IDs)
-- ADDRESS: any text matching the street pattern
+The exact schema should match the SQL used by backend/app/main.py and the project's database setup.
 
-**False negatives**:
-- NAME: any name not in the curated list (~32 names) — the vast majority of
-  names will not be detected
-- PHONE: phone numbers with unusual formatting
-- ADDRESS: addresses that don't match the street-suffix pattern
-- No detection for: dates of birth, passport numbers, national IDs, bank
-  account numbers, medical records, biometric data
+Important
 
-**Failure scenarios**:
-- Very long prompts may have overlapping matches resolved incorrectly
-- Non-English text is not well supported
-- PII embedded in code or JSON structures may not be detected
+The backend should be started only after PostgreSQL is running and the required tables exist.
 
-**Production recommendation**: Replace the regex/name-list approach with
-Microsoft Presidio or an NER model (spaCy, HuggingFace) for production use.
-The current implementation demonstrates the **pipeline** (detect → redact →
-store metadata → never store raw) correctly; the detection accuracy is the
-known limitation.
+11. Running Locally
 
-## 16. Observability Approach
+Start PostgreSQL
 
-**Selected approach**: Code instrumentation (the highest-fidelity option — see
-capability matrix below).
+Make sure the PostgreSQL service is running.
 
-**Implementation**: The `flyyy-chat` and `flyyy-agent` edge functions generate
-OpenTelemetry-style spans at the point of AI provider calls and data-source
-access. Each span records:
-- `trace_id` — links spans in a single request
-- `span_id` / `parent_span_id` — parent-child relationships
-- `span_name` — e.g. `ai.chat`, `pii.detect`, `datasource.access`, `agent.run`
-- `span_kind` — client, internal, etc.
-- `attributes` — provider, model, token usage, PII types, data source name
-- `start_time` / `end_time` — timing
-- `status_code` — ok / error
+Start backend
 
-Spans are persisted to the `otel_spans` table and displayed in the
-Observability page.
+From the repository root:
 
-**What is actually captured** (not fabricated):
-- AI provider: ✅ captured at the call site
-- Model: ✅ captured at the call site
-- Token usage: ✅ captured from provider response (when available)
-- Tool calls: ✅ captured (tools_invoked array + span attributes)
-- Agent execution: ✅ captured (agent.run span)
-- Data-source access: ✅ captured (datasource.access span with source name)
+cd backend
+.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --port 8000
 
-**What is NOT captured** (honestly):
-- Network-level latency breakdown (would require a real OTel collector)
-- GPU/memory metrics (not available in edge runtime)
-- Provider-internal routing (not observable from client side)
+Backend:
 
-## 17. OpenTelemetry/OpenLLMetry Approach
+http://127.0.0.1:8000
 
-This implementation uses a **code-instrumentation** approach modeled on
-OpenTelemetry concepts (traces, spans, parent-child relationships, attributes,
-status codes). Rather than exporting to an external OTel collector, spans are
-persisted directly to the `otel_spans` PostgreSQL table — this keeps the demo
-self-contained while demonstrating the same data model.
+FastAPI Swagger documentation:
 
-In a production deployment, the span emission code would be replaced with
-calls to the OpenTelemetry SDK (`@opentelemetry/api`) with an OTLP exporter
-sending to a collector (Jaeger, Honeycomb, etc.). The span names, attributes,
-and structure would remain identical.
+http://127.0.0.1:8000/docs
 
-OpenLLMetry (which auto-instruments LLM SDK calls) is an alternative that
-requires less code change but only works with instrumented SDKs. See the
-capability matrix for the trade-offs.
+Health check:
 
-## 18. Agent Monitoring Approach
+http://127.0.0.1:8000/api/health
 
-The `flyyy-agent` edge function simulates an AI agent that:
-1. **Declares** its expected data sources (FAQ Database)
-2. **Accesses** data sources during execution (FAQ + optionally Orders)
-3. Records both declared and observed access in `agent_run_data_sources`
-4. Compares observed vs declared and flags unexpected access
-5. Raises a governance alert for any unexpected access
+Start frontend
 
-The agent queries real PostgreSQL tables (`faq_entries`, `orders`) as
-simulated data sources, making the demonstration concrete.
+In another terminal:
 
-## 19. Declared vs Observed Access
+cd frontend/project
+npm run dev
 
-Each agent run records:
-- **Declared** data sources (what the agent was approved to access)
-- **Observed** data sources (what the agent actually accessed)
+Frontend:
 
-The comparison: `unexpected = observed - declared` (set difference).
+http://localhost:5173
 
-**Example**:
-```
-Declared:  [FAQ Database]
-Observed:  [FAQ Database, Orders Database]
-Unexpected: [Orders Database]  → WARNING
-```
+The frontend API client communicates with the FastAPI server at:
 
-The Agent Monitoring page visually distinguishes declared (green), observed
-(blue), and unexpected (red) data sources.
+http://127.0.0.1:8000/api
 
-## 20. Retention Mechanism
+12. Backend API
 
-- `retention_config` table stores the retention period in days (default: 30)
-- Settings page allows configuring 7/30/90/custom days
-- `POST /functions/v1/flyyy-api/config/retention/apply` deletes `ai_activity`
-  records (and cascading `pii_events`, `otel_spans`) older than the cutoff
-- Cutoff = `now() - retention_days`
-- The deletion uses `ON DELETE CASCADE` so child records are automatically removed
+The current frontend communicates with the FastAPI backend using the following API groups.
 
-**Limitation**: Retention purge is a manual action in the demo. In production,
-this would be a scheduled cron job or Supabase scheduled function.
+Health
 
-## 21. Prompt Monitoring Enable/Disable
+GET /api/health
+GET /api/health/database
 
-- `monitoring_config` table stores `prompt_monitoring_enabled` (boolean)
-- When **ON**: `ai_activity.sanitized_prompt` stores the sanitized prompt text
-- When **OFF**: `ai_activity.sanitized_prompt` is set to `null` — no prompt
-  content is stored, but all non-content metadata (provider, model, duration,
-  status, PII counts, token usage) is still recorded
-- The UI clearly indicates when monitoring is disabled (sidebar indicator +
-  activity table shows "monitoring disabled" instead of prompt text)
-- Toggling raises a `config_change` governance alert
+Dashboard
 
-**Important**: PII detection still runs even when monitoring is disabled, so
-PII counts are still recorded. Only the prompt *content* is withheld.
+GET /api/dashboard/summary
 
-## 22. Capability Matrix
+AI Assets
 
-Based on practical implementation and research into what each observability
-approach can actually capture:
+GET /api/assets
 
-| Capability | No Code Change | Gateway | Code Instrumentation |
-|---|---|---|---|
-| AI provider | Not observable | Observed (intercept HTTP) | ✅ Observed |
-| Model | Not observable | Observed (parse request body) | ✅ Observed |
-| Prompt | Not observable | Partially observable (gateway sees raw prompt — privacy concern) | ✅ Observed (with sanitization) |
-| Token usage | Not observable | Observed (parse response body) | ✅ Observed (from response) |
-| Tool calls | Not observable | Partially observable (if in HTTP body) | ✅ Observed (at call site) |
-| Agent execution | Not observable | Not reliably observable | ✅ Observed (agent.run span) |
-| Data-source access | Not observable | Not observable (happens inside app) | ✅ Observed (datasource.access span) |
+Prompt Monitoring
 
-**Reasoning**:
+POST /api/monitoring/prompt
+GET  /api/monitoring/search
+GET  /api/monitoring/activity
+GET  /api/monitoring/metrics
 
-- **No Code Change**: Without any instrumentation or proxy, AI calls happen
-  directly from the application to the provider. There is no observation point.
-  Nothing is observable. This is the default state of most AI usage today.
+Monitoring Status
 
-- **Gateway**: An HTTP proxy/gateway between the app and the AI provider can
-  intercept requests and responses. It can see provider (from URL), model and
-  prompt (from request body), and token usage (from response body). However,
-  the gateway sees the **raw prompt** — a significant privacy concern. It
-  cannot see tool calls or data-source access that happen inside the
-  application process. Agent execution is not reliably observable because the
-  gateway only sees HTTP calls, not the agent's internal logic.
+GET  /api/monitoring/status
+POST /api/monitoring/status
 
-- **Code Instrumentation**: Instrumenting the application code (as this project
-  does) gives the highest fidelity. Every capability is observed at the point
-  it occurs. The prompt can be sanitized before logging. Tool calls and
-  data-source access — which happen inside the application — are only
-  observable through code instrumentation. This is the approach used in
-  FLYYY.AI.
+Retention
 
-**Labels used**: Observed (✅) = reliably captured; Partially observable =
-captured but with caveats; Not observable / Not reliably observable = cannot
-be captured with this approach.
+GET    /api/monitoring/retention
+DELETE /api/monitoring/retention
 
-## 23. Assumptions
+Governance
 
-- Single-tenant demo (no user authentication) — all data is shared
-- Supabase is the backend (PostgreSQL + edge functions)
-- Demo AI responses are deterministic when no AI API key is configured
-- The "Customer Support Agent" declares FAQ Database as its only data source
-- Edge functions use the service role key for database writes (bypassing RLS)
-- The frontend uses the anon key (RLS allows anon CRUD for demo purposes)
+GET /api/governance/alerts
+GET /api/governance/unexpected-access
 
-## 24. Limitations
+Chat
 
-- **PII detection is regex-based** — see PII Limitations section above
-- **No real OTel collector** — spans are stored in PostgreSQL, not exported
-- **Retention purge is manual** — no scheduled job
-- **No authentication** — demo is single-tenant; production needs auth + RLS
-- **Demo AI fallback** — when no `AI_API_KEY` is set, responses are canned
-- **Name list is small** (~32 names) — most names will not be detected
-- **No streaming** — AI responses are returned as complete strings
-- **Agent is simulated** — it queries real tables but the "decision" to access
-  Orders is controlled by the caller, not by an actual LLM agent loop
+POST /api/chat
 
-## 25. Security Considerations
+The chat endpoint powers the Customer Support AI page.
 
-- **API keys never in frontend**: `AI_API_KEY` is only read by edge functions
-- **PII never persisted**: raw prompts are processed in memory and discarded
-- **Sanitization before persistence**: the sanitized prompt is the only version stored
-- **Input validation**: edge functions validate request bodies (non-empty prompt, positive integer retention days)
-- **Error handling**: all edge function code is wrapped in try/catch
-- **CORS**: all edge function responses include required CORS headers
-- **RLS enabled**: all tables have RLS (policies allow anon for demo)
-- **Least privilege**: production should restrict to authenticated role with ownership checks
-- **No raw prompt logging**: edge functions never log the raw prompt
+Agent
 
-## 26. Testing
+POST /api/agent/run
+GET  /api/agent-runs
+GET  /api/agent-runs/{id}
 
-```bash
+Configuration
+
+The frontend configuration page uses configuration endpoints exposed by the backend.
+
+Observability
+
+GET /api/observability/spans
+
+The exact request/response shape is defined in frontend/project/src/services/api.ts and frontend/project/src/types/index.ts.
+
+13. Frontend Pages
+
+Dashboard
+
+Provides the overall monitoring summary.
+
+Assets
+
+Shows registered AI applications/agents.
+
+Activity
+
+Shows AI activity and sanitized prompt information.
+
+PII
+
+Shows detected PII types and counts.
+
+Customer Support AI
+
+Provides a live prompt interface for demonstrating PII detection.
+
+Agent Monitoring
+
+Allows the user to run the demo agent and compare:
+
+Declared
+Observed
+Unexpected
+
+Governance Alerts
+
+Shows governance events and allows filtering by status.
+
+Observability
+
+Groups spans by trace and displays:
+
+Trace ID
+
+Span ID
+
+Parent span
+
+Span name
+
+Span kind
+
+Attributes
+
+Status
+
+Settings
+
+Controls monitoring and retention configuration.
+
+14. PII Detection and Sanitization
+
+The monitoring pipeline follows:
+
+Raw Prompt
+   ↓
+PII Detection
+   ↓
+Identify sensitive values
+   ↓
+Replace values with tokens
+   ↓
+Persist sanitized content only
+
+Example:
+
+Input:
+"Call Ramesh at 9840123456 about his order."
+
+Stored:
+"Call <NAME> at <PHONE> about his order."
+
+The PII metadata records the type and count rather than the original value.
+
+Example:
+
+{
+  "PHONE": 1,
+  "NAME": 1
+}
+
+15. PII Supported Types
+
+The implementation supports the PII patterns implemented in backend/app/pii.py.
+
+Typical supported categories include:
+
+Type
+
+Example
+
+Stored
+
+NAME
+
+Ramesh
+
+<NAME>
+
+PHONE
+
+9840123456
+
+<PHONE>
+
+EMAIL
+
+jane@example.com
+
+<EMAIL>
+
+ADDRESS
+
+123 Main St
+
+<ADDRESS>
+
+SSN
+
+123-45-6789
+
+<SSN>
+
+CREDIT CARD
+
+4111 1111 1111 1111
+
+<CREDIT_CARD>
+
+The exact patterns are implementation-dependent and should be reviewed in backend/app/pii.py.
+
+16. Prompt Monitoring
+
+Prompt monitoring can be enabled or disabled.
+
+Enabled
+
+The backend can store:
+
+Sanitized prompt
+
+PII detection status
+
+PII counts
+
+Provider
+
+Model
+
+Duration
+
+Status
+
+Token usage where available
+
+Disabled
+
+Prompt content is not stored.
+
+Operational metadata can still be captured so that monitoring does not become completely blind when prompt-content storage is disabled.
+
+The frontend exposes the monitoring state through the Settings page.
+
+17. AI Agent Monitoring
+
+The Agent Monitoring page demonstrates a governance scenario.
+
+The demo agent declares:
+
+FAQ Database
+
+A normal execution observes:
+
+FAQ Database
+
+A test execution can also access:
+
+Orders Database
+
+The backend calculates:
+
+unexpected = observed - declared
+
+Example:
+
+Declared:
+  FAQ Database
+
+Observed:
+  FAQ Database
+  Orders Database
+
+Unexpected:
+  Orders Database
+
+The unexpected access is surfaced as a governance event.
+
+This demonstrates why application-level instrumentation is important: a gateway observing only external AI-provider traffic cannot reliably see internal application data-source access.
+
+18. Governance Alerts
+
+The platform supports governance alert categories such as:
+
+PII Detected
+Unexpected Data Access
+Failed Execution
+Config Change
+
+Alerts contain information such as:
+
+Alert ID
+
+Type
+
+Severity
+
+Related AI asset
+
+Description
+
+Status
+
+Creation time
+
+Resolution time where applicable
+
+Alert statuses include:
+
+open
+acknowledged
+resolved
+
+19. Observability
+
+FLYYY.AI uses an application-level, OpenTelemetry-style instrumentation model.
+
+Important execution points can produce spans such as:
+
+ai.chat
+pii.detect
+agent.run
+datasource.access
+
+A span can contain:
+
+trace_id
+
+span_id
+
+parent_span_id
+
+span_name
+
+span_kind
+
+attributes
+
+start time
+
+end time
+
+status
+
+Example:
+
+Trace
+ ├── ai.chat
+ │    └── pii.detect
+ │
+ └── datasource.access
+
+Why code instrumentation?
+
+Code instrumentation can observe events that happen inside the application, including:
+
+AI provider calls
+
+model information
+
+token usage
+
+tool invocation
+
+agent execution
+
+database/data-source access
+
+A simple network gateway cannot reliably observe all internal application behavior.
+
+Important limitation
+
+This project demonstrates OpenTelemetry-style instrumentation and persistence. It does not claim to provide provider-internal telemetry, GPU metrics, or network-level visibility that is unavailable from the application.
+
+A production deployment could export spans through the OpenTelemetry SDK to an OTLP collector such as Jaeger, Honeycomb, or another compatible backend.
+
+20. Retention
+
+The platform supports configurable retention.
+
+The retention configuration controls how long monitoring records are kept.
+
+The retention workflow is:
+
+Current time
+     ↓
+Current time - retention period
+     ↓
+Delete records older than cutoff
+
+The Settings page exposes the retention configuration and purge operation.
+
+Production improvement
+
+The current demo uses an explicit purge action. A production system should use a scheduled background job or managed database scheduler.
+
+21. Capability Matrix
+
+The project evaluates AI observability at three levels.
+
+Capability
+
+No Code Change
+
+Gateway
+
+Code Instrumentation
+
+AI provider
+
+Not reliably observable
+
+Observable
+
+Observable
+
+Model
+
+Not reliably observable
+
+Observable
+
+Observable
+
+Prompt
+
+Not observable
+
+Observable, but raw prompt privacy risk
+
+Observable with sanitization
+
+Token usage
+
+Not observable
+
+Usually observable from response
+
+Observable
+
+Tool calls
+
+Not reliably observable
+
+Partially observable
+
+Observable at call site
+
+Agent execution
+
+Not reliably observable
+
+Not reliably observable
+
+Observable
+
+Data-source access
+
+Not observable
+
+Not reliably observable
+
+Observable inside application
+
+No Code Change
+
+Without instrumentation or a proxy, there is no reliable observation point.
+
+Gateway
+
+A gateway can observe HTTP traffic between the application and AI provider.
+
+Advantages:
+
+Provider visibility
+
+Model visibility
+
+Prompt visibility
+
+Token usage when present in the response
+
+Limitations:
+
+Raw prompt may pass through the gateway
+
+Internal tool calls may not be visible
+
+Internal database/data-source access is not visible
+
+Agent decisions are not reliably visible
+
+Code Instrumentation
+
+Application instrumentation provides the highest fidelity for this use case because events are captured where they actually occur.
+
+It also allows PII sanitization before persistence.
+
+22. Security and Privacy
+
+The project follows several privacy principles.
+
+Raw PII is not intended to be persisted
+
+Prompt processing should sanitize sensitive values before the monitoring record is written.
+
+Secrets stay on the backend
+
+Database credentials and AI provider keys must never be placed in frontend source code.
+
+No secrets in Git
+
+Do not commit:
+
+.env
+database passwords
+API keys
+provider secrets
+
+Use .env.example for safe configuration templates.
+
+Backend as trust boundary
+
+The frontend communicates with the backend API rather than directly writing sensitive monitoring records.
+
+Input validation
+
+The FastAPI backend validates request parameters and should reject invalid requests.
+
+Error handling
+
+Backend database/API operations should return meaningful HTTP errors instead of exposing sensitive internal information.
+
+23. Testing
+
+Run the frontend tests if the project test suite is configured:
+
+cd frontend/project
 npm test
-```
 
-Tests (35 total, all passing):
+Build the frontend to catch TypeScript/build issues:
 
-- **PII detection** (6 tests): name, phone, email, address, SSN, clean prompt
-- **PII sanitization** (6 tests): token replacement for all types, multi-type, clean prompt
-- **PII counts** (3 tests): single type, multiple occurrences, empty
-- **Privacy guarantee** (3 tests): raw values never in sanitized output
-- **Declared vs observed** (6 tests): subset, superset, empty, case sensitivity
-- **Agent scenarios** (2 tests): expected access, unexpected access
-- **Retention logic** (5 tests): cutoff computation, expiry, boundary, 90-day
-- **Prompt monitoring on/off** (3 tests): null when disabled, metadata still recorded
+npm run build
 
-Tests use a minimal self-contained test harness (no external test framework
-dependency) in `tests/deps.ts`.
+Run the backend and verify:
 
-## 27. Deployment Instructions
+GET /api/health
+GET /api/health/database
 
-### Frontend
-```bash
-npm run build      # produces dist/
-# Deploy dist/ to any static host (Vercel, Netlify, Cloudflare Pages)
-```
+Then verify the main application flows:
 
-### Backend (Edge Functions)
-Edge functions are deployed via Supabase. In this project they are already
-deployed. To redeploy:
-- Use the Supabase dashboard or CLI to deploy `supabase/functions/flyyy-api`,
-  `flyyy-chat`, `flyyy-agent`
+Open Dashboard
 
-### Database
-Migrations are applied via Supabase. The schema and seed data are already
-applied to the provisioned instance.
+Open Assets
 
-### Environment
-Set these edge function secrets in Supabase:
-- `AI_PROVIDER` (optional, defaults to demo)
-- `AI_API_KEY` (optional, enables live AI)
-- `AI_MODEL` (optional)
-- `AI_BASE_URL` (optional)
+Open Activity
 
-## 28. Future Improvements
+Submit a prompt containing a phone number/email
 
-- Replace regex PII detection with Microsoft Presidio or an NER model
-- Add user authentication with Supabase Auth + owner-scoped RLS
-- Export OTel spans to a real collector (Jaeger/Honeycomb) via OTLP
-- Scheduled retention purge (Supabase scheduled function)
-- Real LLM agent loop (tool-use / function-calling) instead of simulated agent
-- Real-time monitoring via Supabase Realtime subscriptions
-- Alert acknowledgment/resolution workflow in the UI
-- Audit log for config changes
-- Multi-tenant support with per-tenant data isolation
-- Rate limiting and quota management per AI asset
+Verify PII is detected
+
+Verify sanitized text is displayed
+
+Open PII page
+
+Open Agent Monitoring
+
+Run the agent without Orders access
+
+Run it with Orders access enabled
+
+Verify unexpected access is flagged
+
+Open Governance Alerts
+
+Open Observability
+
+Open Settings
+
+Toggle prompt monitoring
+
+Test retention configuration
+
+24. Assumptions
+
+The application is currently a demonstration/prototype.
+
+PostgreSQL is the primary relational database.
+
+The frontend and backend run as separate local processes during development.
+
+The backend is the main API and persistence boundary.
+
+The agent monitoring workflow is designed to demonstrate declared-vs-observed access.
+
+Demo AI responses may be deterministic when no external AI provider is configured.
+
+Authentication and multi-tenancy are outside the current demo scope.
+
+25. Limitations
+
+PII detection
+
+Regex/rule-based detection can have:
+
+False positives
+
+False negatives
+
+Limited coverage of names
+
+Limited support for unusual formats
+
+Limited support for multilingual PII
+
+A production system could use Microsoft Presidio, an NER model, or another dedicated PII detection framework.
+
+Observability
+
+The current implementation does not provide:
+
+Provider-internal telemetry
+
+GPU/memory metrics
+
+Network packet-level visibility
+
+Internal provider routing information
+
+A full external OpenTelemetry collector pipeline
+
+Agent
+
+The demo agent is intended to demonstrate governance monitoring rather than a production autonomous agent architecture.
+
+Authentication
+
+Authentication and multi-tenant isolation are not the focus of the current prototype.
+
+Retention
+
+The purge operation is manually triggered rather than scheduled.
+
+26. Deployment
+
+Frontend
+
+Build the React application:
+
+cd frontend/project
+npm install
+npm run build
+
+The production files are generated in:
+
+dist/
+
+The frontend can be deployed to a static hosting service such as Vercel, Netlify, Cloudflare Pages, or an equivalent platform.
+
+Set:
+
+VITE_API_URL=https://your-backend-domain
+
+Backend
+
+The FastAPI backend can be deployed using a Python-compatible hosting platform.
+
+Production example:
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+For production, use a managed PostgreSQL database and configure environment variables securely.
+
+Do not expose database passwords or API keys in source code.
+
+CORS
+
+The backend should allow the deployed frontend origin.
+
+For local development:
+
+http://localhost:5173
+
+For production, replace the development origin with the actual frontend domain.
+
+27. Future Improvements
+
+Potential production improvements include:
+
+Microsoft Presidio or NER-based PII detection
+
+Authentication and role-based access control
+
+Multi-tenant data isolation
+
+PostgreSQL Row-Level Security
+
+Real OpenTelemetry SDK + OTLP collector
+
+Jaeger/Honeycomb/Grafana integration
+
+Scheduled retention jobs
+
+Real LLM agent tool-calling
+
+Streaming AI responses
+
+Rate limiting
+
+Audit logs for configuration changes
+
+Real-time monitoring
+
+Alert acknowledgement and resolution workflow
+
+Better PII coverage for international identifiers
+
+Automated CI/CD
+
+Docker-based deployment
+
+Production health/readiness checks
+
+Structured application logging
+
+Project Goal
+
+FLYYY.AI is designed to demonstrate the complete governance lifecycle:
+
+AI Activity
+     ↓
+Safe Capture
+     ↓
+PII Detection & Sanitization
+     ↓
+AI / Agent Execution
+     ↓
+Application-Level Observability
+     ↓
+Activity & Governance Analysis
+     ↓
+Alerts and Governance Insight
+
+The key design principle is:
+
+Observe AI activity without unnecessarily retaining sensitive information.
+
+The project prioritizes privacy-aware monitoring, explainable governance signals, application-level observability, and clear documentation of technical limitations. 
