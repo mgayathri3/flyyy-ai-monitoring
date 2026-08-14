@@ -1320,4 +1320,4 @@ The key design principle is:
 
 Observe AI activity without unnecessarily retaining sensitive information.
 
-The project prioritizes privacy-aware monitoring, explainable governance signals, application-level observability, and clear documentation of technical limitations. 
+The project prioritizes privacy-aware monitoring, explainable governance signals, application-level observability, and clear documentation of technical limitations.
