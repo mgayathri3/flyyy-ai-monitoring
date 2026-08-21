@@ -1,9 +1,36 @@
 from presidio_analyzer import AnalyzerEngine
+from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 
 
-analyzer = AnalyzerEngine()
+# Configure Presidio to use the lightweight spaCy English model
+configuration = {
+    "nlp_engine_name": "spacy",
+    "models": [
+        {
+            "lang_code": "en",
+            "model_name": "en_core_web_sm"
+        }
+    ]
+}
+
+# Create the NLP engine
+provider = NlpEngineProvider(
+    nlp_configuration=configuration
+)
+
+nlp_engine = provider.create_engine()
+
+# Create Presidio analyzer using the lightweight model
+analyzer = AnalyzerEngine(
+    nlp_engine=nlp_engine,
+    supported_languages=["en"]
+)
+
+# Create anonymizer
 anonymizer = AnonymizerEngine()
+
+
 def sanitize_prompt(prompt: str):
     results = analyzer.analyze(
         text=prompt,
